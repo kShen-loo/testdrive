@@ -15,6 +15,9 @@ public class CarController : MonoBehaviour
     public float rotationDeceleration = 70f; // Rotation decrement per second
     public float oppositeDirectionSnapBackValue = 2.5f;
 
+    //[Header( "Drift" )]
+    //[SerializeField] private float driftRotationMultiplier = 1.0f;
+
     [Header( "Physics & Gravity" )]
     public float gravity = 9.8f;           // Gravity force
     public float raycastDistance = 2f;     // Distance to check for ground below
@@ -31,6 +34,7 @@ public class CarController : MonoBehaviour
     [Header( "Debug" )]
     [SerializeField] private TextMeshProUGUI m_debugUGUI;
     [SerializeField] private TextMeshProUGUI m_debugDriftUGUI;
+    [SerializeField] private bool m_alwaysDrifting;
 
     // ====================================================================================================
 
@@ -98,18 +102,26 @@ public class CarController : MonoBehaviour
 
         // Clamp rotation speed
         float rotationSpeedCap = this.maxRotationAngle;
-        if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
-        {
-            if ( this.currentRotationSpeed > this.maxRotationAngle * 0.9f || this.currentRotationSpeed < -this.maxRotationAngle * 0.9f )
-                this.m_isDrifting = true;
-        }
-        else if ( this.currentRotationSpeed > -this.maxRotationAngle * 0.9f && this.currentRotationSpeed < this.maxRotationAngle * 0.9f )
-        {
-            this.m_isDrifting = false;
-        }
 
-        rotationSpeedCap = this.m_isDrifting ? this.maxDriftRotationAngle : this.maxRotationAngle;
+        if ( this.m_alwaysDrifting )
+        {
+            this.m_isDrifting = true;
+            rotationSpeedCap = this.maxDriftRotationAngle;
+        }
+        else
+        {
+            if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
+            {
+                if ( this.currentRotationSpeed > this.maxRotationAngle * 0.9f || this.currentRotationSpeed < -this.maxRotationAngle * 0.9f )
+                    this.m_isDrifting = true;
+            }
+            else if ( this.currentRotationSpeed > -this.maxRotationAngle * 0.9f && this.currentRotationSpeed < this.maxRotationAngle * 0.9f )
+            {
+                this.m_isDrifting = false;
+            }
 
+            rotationSpeedCap = this.m_isDrifting ? this.maxDriftRotationAngle : this.maxRotationAngle;
+        }
 
         currentRotationSpeed = Mathf.Clamp( currentRotationSpeed, -rotationSpeedCap, rotationSpeedCap );
 
@@ -160,8 +172,11 @@ public class CarController : MonoBehaviour
 
     private void UpdateDebugText()
     {
-        this.m_debugUGUI.text = "Current Rotation Angle: " + this.currentRotationSpeed;
-        this.m_debugDriftUGUI.text = "Drift Status: " + this.m_isDrifting;
+        if ( this.m_debugUGUI != null )
+            this.m_debugUGUI.text = "Current Rotation Angle: " + this.currentRotationSpeed;
+
+        if ( this.m_debugDriftUGUI != null )
+            this.m_debugDriftUGUI.text = "Drift Status: " + this.m_isDrifting;
     }
 
     private void AlignToGround()
