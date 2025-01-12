@@ -1,22 +1,40 @@
+using TMPro;
 using UnityEngine;
 
 public class CarController : MonoBehaviour
 {
+    [Header( "Speed" )]
     public float maxSpeed = 20f;            // Maximum forward speed
     public float acceleration = 5f;        // Speed increment per second when pressing forward
     public float deceleration = 10f;       // Speed decrement per second when not pressing forward
-    public float maxRotationSpeed = 100f;  // Maximum steering rotation speed
+
+    [Header( "Angle" )]
+    public float maxRotationAngle = 100f;  // Maximum steering rotation speed
+    public float maxDriftRotationAngle = 85f;
     public float rotationAcceleration = 50f; // Rotation increment per second
     public float rotationDeceleration = 70f; // Rotation decrement per second
+    public float oppositeDirectionSnapBackValue = 2.5f;
+
+    [Header( "Physics & Gravity" )]
     public float gravity = 9.8f;           // Gravity force
     public float raycastDistance = 2f;     // Distance to check for ground below
     public float rotationLerpSpeed = 10f;  // Speed of rotation adjustment to match ground
-    public float oppositeDirectionSnapBackValue = 2.5f;
+    [SerializeField] private LayerMask m_layer;
 
-    private float currentSpeed = 0f;       // Current forward speed
-    private float currentRotationSpeed = 0f; // Current rotation speed
     private CharacterController characterController;
     private Vector3 velocity;              // Movement velocity, including gravity
+    private float currentSpeed = 0f;       // Current forward speed
+    private float currentRotationSpeed = 0f; // Current rotation speed
+    private bool m_align = true;
+    private bool m_isDrifting = false;
+
+    [Header( "Debug" )]
+    [SerializeField] private TextMeshProUGUI m_debugUGUI;
+    [SerializeField] private TextMeshProUGUI m_debugDriftUGUI;
+
+    // ====================================================================================================
+
+    #region monobehaviour
 
     private void Awake()
     {
@@ -48,7 +66,7 @@ public class CarController : MonoBehaviour
 
         // Clamp forward speed
         currentSpeed = Mathf.Clamp( currentSpeed, 0f, maxSpeed );
-
+         
         // Handle rotation acceleration and deceleration
         float steeringInput = 0f;
         if ( Input.GetKey( KeyCode.A ) ) // A key to steer left
@@ -79,7 +97,21 @@ public class CarController : MonoBehaviour
         }
 
         // Clamp rotation speed
-        currentRotationSpeed = Mathf.Clamp( currentRotationSpeed, -maxRotationSpeed, maxRotationSpeed );
+        float rotationSpeedCap = this.maxRotationAngle;
+        if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
+        {
+            if ( this.currentRotationSpeed > this.maxRotationAngle * 0.9f || this.currentRotationSpeed < -this.maxRotationAngle * 0.9f )
+                this.m_isDrifting = true;
+        }
+        else if ( this.currentRotationSpeed > -this.maxRotationAngle * 0.9f && this.currentRotationSpeed < this.maxRotationAngle * 0.9f )
+        {
+            this.m_isDrifting = false;
+        }
+
+        rotationSpeedCap = this.m_isDrifting ? this.maxDriftRotationAngle : this.maxRotationAngle;
+
+
+        currentRotationSpeed = Mathf.Clamp( currentRotationSpeed, -rotationSpeedCap, rotationSpeedCap );
 
         // Apply gravity
         if ( !characterController.isGrounded )
@@ -103,6 +135,7 @@ public class CarController : MonoBehaviour
         if ( currentSpeed > 0.1f ) // Allow rotation only when the car is moving
         {
             transform.Rotate( 0, currentRotationSpeed * Time.deltaTime, 0 );
+            //transform.Rotate( 0, currentRotationSpeed, 0 );
         }
 
         // Adjust car's rotation to follow the ground normal
@@ -110,6 +143,8 @@ public class CarController : MonoBehaviour
         {
             AlignToGround();
         }
+
+        this.UpdateDebugText();
 
         if ( Input.GetKeyDown( KeyCode.Tab ) )
         {
@@ -119,8 +154,15 @@ public class CarController : MonoBehaviour
         }
     }
 
-    private bool m_align = true;
-    [SerializeField] private LayerMask m_layer;
+    #endregion monobehaviour
+
+    // ====================================================================================================
+
+    private void UpdateDebugText()
+    {
+        this.m_debugUGUI.text = "Current Rotation Angle: " + this.currentRotationSpeed;
+        this.m_debugDriftUGUI.text = "Drift Status: " + this.m_isDrifting;
+    }
 
     private void AlignToGround()
     {
@@ -135,7 +177,8 @@ public class CarController : MonoBehaviour
             Quaternion targetRotation = Quaternion.FromToRotation( transform.up, groundNormal ) * transform.rotation;
 
             // Smoothly interpolate to the target rotation
-            transform.rotation = Quaternion.Lerp( transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime );
+            //transform.rotation = Quaternion.Lerp( transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime );
+            transform.rotation = targetRotation;
         }
     }
 
@@ -159,4 +202,6 @@ public class CarController : MonoBehaviour
         this.currentRotationSpeed = 0;
         this.currentSpeed = 0;
     }
+
+    // ====================================================================================================
 }
