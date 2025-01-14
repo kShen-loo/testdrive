@@ -15,17 +15,29 @@ public class CarController : MonoBehaviour
     public float rotationDeceleration = 70f; // Rotation decrement per second
     public float oppositeDirectionSnapBackValue = 2.5f;
 
-    //[Header( "Drift" )]
-    //[SerializeField] private float driftRotationMultiplier = 1.0f;
+    [Header( "Drift" )]
+    [SerializeField] private float m_enterDriftRequirementMultiplier = 0.8f;
+    [SerializeField] private float m_exitDriftRequirementMultiplier = 0.6f;
+    //[SerializeField] private float m_driftCounterSteerMultiplier = 1.5f;      // NOTE: Currently unused
 
     [Header( "Physics & Gravity" )]
     public float gravity = 9.8f;           // Gravity force
     public float raycastDistance = 2f;     // Distance to check for ground below
     public float rotationLerpSpeed = 10f;  // Speed of rotation adjustment to match ground
     [SerializeField] private LayerMask m_layer;
+    [SerializeField] private float m_groundCheckDistance;
+    [SerializeField] private LayerMask m_groundLayer;
 
+    [Header( "Camera" )]
+    [SerializeField] private Transform m_cinemachineFollowTarget;
+    [SerializeField] private Transform m_cinemachineFollowTargetTEMP;   // Duplicated transform that is unmodified in code to obtain reference transform
+    //[SerializeField] private Vector3 m_driftCameraOffset;
+
+    public bool grounded { get { return this.IsGrounded(); } }
+    private Rigidbody m_rb;
     private CharacterController characterController;
     private Vector3 velocity;              // Movement velocity, including gravity
+    private Vector3 m_driftOrigin;
     private float currentSpeed = 0f;       // Current forward speed
     private float currentRotationSpeed = 0f; // Current rotation speed
     private bool m_align = true;
@@ -34,21 +46,30 @@ public class CarController : MonoBehaviour
     [Header( "Debug" )]
     [SerializeField] private TextMeshProUGUI m_debugUGUI;
     [SerializeField] private TextMeshProUGUI m_debugDriftUGUI;
+    [SerializeField] private TextMeshProUGUI m_debugDriftCamera;
     [SerializeField] private bool m_alwaysDrifting;
 
     // ====================================================================================================
 
     #region monobehaviour
 
+    private void OnDrawGizmos()
+    {
+        this.DrawCarForwardVector();
+        this.DrawMaxCameraAngleGizmos();
+    }
+
     private void Awake()
     {
         this.RecordOrigin();
+        this.m_driftOrigin = this.m_cinemachineFollowTarget.transform.localPosition;
     }
 
     void Start()
     {
         // Get the CharacterController component
-        characterController = GetComponent<CharacterController>();
+        this.m_rb = GetComponent<Rigidbody>();
+        this.characterController = GetComponent<CharacterController>();
 
         if ( characterController == null )
         {
@@ -58,6 +79,12 @@ public class CarController : MonoBehaviour
 
     void Update()
     {
+        if ( Input.GetKeyDown( KeyCode.Space ) )
+        {
+            this.m_alwaysDrifting = !this.m_alwaysDrifting;
+            return;
+        }
+
         // Handle forward acceleration and deceleration
         if ( Input.GetKey( KeyCode.W ) ) // Pressing forward
         {
@@ -110,15 +137,20 @@ public class CarController : MonoBehaviour
         }
         else
         {
-            if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
-            {
-                if ( this.currentRotationSpeed > this.maxRotationAngle * 0.9f || this.currentRotationSpeed < -this.maxRotationAngle * 0.9f )
-                    this.m_isDrifting = true;
-            }
-            else if ( this.currentRotationSpeed > -this.maxRotationAngle * 0.9f && this.currentRotationSpeed < this.maxRotationAngle * 0.9f )
-            {
-                this.m_isDrifting = false;
-            }
+            //if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
+            //{
+            //    if ( this.currentRotationSpeed > this.maxRotationAngle * this.m_enterDriftRequirementMultiplier 
+            //        || this.currentRotationSpeed < -this.maxRotationAngle * this.m_enterDriftRequirementMultiplier )
+            //        this.m_isDrifting = true;
+            //}
+
+            //if ( this.currentRotationSpeed > -this.maxRotationAngle * this.m_exitDriftRequirementMultiplier 
+            //    && this.currentRotationSpeed < this.maxRotationAngle * this.m_exitDriftRequirementMultiplier )
+            //{
+            //    this.m_isDrifting = false;
+            //}
+
+            this.m_isDrifting = false;
 
             rotationSpeedCap = this.m_isDrifting ? this.maxDriftRotationAngle : this.maxRotationAngle;
         }
@@ -135,13 +167,25 @@ public class CarController : MonoBehaviour
             velocity.y = 0f; // Reset vertical velocity when grounded
         }
 
+        //if ( !this.grounded )
+        //{
+        //    velocity.y -= gravity * Time.deltaTime;
+        //}
+        //else
+        //{
+        //    velocity.y = 0f; // Reset vertical velocity when grounded
+        //}
+
         // Move forward
         Vector3 forwardMovement = transform.forward * currentSpeed;
         velocity.x = forwardMovement.x;
         velocity.z = forwardMovement.z;
 
         // Apply movement
+        //this.m_rb.MovePosition( velocity * Time.deltaTime );
         characterController.Move( velocity * Time.deltaTime );
+
+        this.DrawDrivingVelocity( velocity.normalized );
 
         // Rotate (steer) only if the car is moving
         if ( currentSpeed > 0.1f ) // Allow rotation only when the car is moving
@@ -157,6 +201,8 @@ public class CarController : MonoBehaviour
         }
 
         this.UpdateDebugText();
+        this.UpdateDriftCameraAngleValue();
+        this.ApplyYOffset();
 
         if ( Input.GetKeyDown( KeyCode.Tab ) )
         {
@@ -170,6 +216,11 @@ public class CarController : MonoBehaviour
 
     // ====================================================================================================
 
+    private bool IsGrounded()
+    {
+        return Physics.Raycast( this.transform.position, Vector3.down, this.m_groundCheckDistance + 0.1f, this.m_groundLayer );
+    }
+
     private void UpdateDebugText()
     {
         if ( this.m_debugUGUI != null )
@@ -177,6 +228,9 @@ public class CarController : MonoBehaviour
 
         if ( this.m_debugDriftUGUI != null )
             this.m_debugDriftUGUI.text = "Drift Status: " + this.m_isDrifting;
+
+        if ( this.m_debugDriftCamera )
+            this.m_debugDriftCamera.text = "Drift Camera Value: " + this.rotationOffset;
     }
 
     private void AlignToGround()
@@ -217,6 +271,110 @@ public class CarController : MonoBehaviour
         this.currentRotationSpeed = 0;
         this.currentSpeed = 0;
     }
+
+    private Vector3 GetCameraLocalPosition()
+    {
+        return this.m_cinemachineFollowTargetTEMP.position;
+    }
+
+    private float GetDriftCameraValue()
+    {
+        if ( this.currentRotationSpeed > this.maxRotationAngle && this.currentRotationSpeed <= this.maxDriftRotationAngle )
+        {
+            return this.GetPercentageBetween( this.currentRotationSpeed, this.maxRotationAngle, this.maxDriftRotationAngle );
+        }
+        else if ( this.currentRotationSpeed < -this.maxRotationAngle && this.currentRotationSpeed >= -this.maxDriftRotationAngle )
+        {
+            return -this.GetPercentageBetween( this.currentRotationSpeed, -this.maxRotationAngle, -this.maxDriftRotationAngle );
+        }
+
+        return 0;
+    }
+
+    [Header( "Target Transform" )]
+    public Transform target;  // The transform to offset
+
+    [Header( "Offset Settings" )]
+    public float distance = 5f;               // Distance from the target
+    [Range( -180f, 180f )]
+    public float rotationOffset = 0;  // Euler rotation offset
+    public float rotOffsetA;
+    public float rotOffsetB;
+
+    private void UpdateDriftCameraAngleValue()
+    {
+        //Vector3 driftA = this.m_driftOrigin + -this.m_driftCameraOffset;
+        //Vector3 driftB = this.m_driftOrigin + this.m_driftCameraOffset;
+        //this.m_cinemachineFollowTarget.transform.localPosition = Vector3.Lerp( driftA, driftB, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) );
+        rotationOffset = Mathf.Lerp( rotOffsetA, rotOffsetB, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) );
+    }
+
+    /// <summary>
+    /// Offsets the target's position and Y-axis rotation relative to the player.
+    /// </summary>
+    void ApplyYOffset()
+    {
+        // Apply rotation offset on the Y-axis (-180 to 180)
+        Quaternion offsetRotation = Quaternion.Euler( 0f, rotationOffset, 0f );
+
+        // Calculate the new position based on the offset
+        Vector3 offsetPosition = transform.position + ( offsetRotation * transform.forward * distance );
+
+        // Apply the calculated position to the target
+        target.position = offsetPosition;
+
+        // Align the target's Y-axis rotation with the offset
+        target.rotation = Quaternion.Euler( 0f, transform.eulerAngles.y + rotationOffset, 0f );
+    }
+
+    // ====================================================================================================
+
+    #region gizmos
+
+    private void DrawMaxCameraAngleGizmos()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere( this.m_cinemachineFollowTarget.position, 0.2f );
+        //Gizmos.DrawLine( this.GetCameraLocalPosition(), this.GetCameraLocalPosition() + -this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
+        //Gizmos.DrawLine( this.GetCameraLocalPosition(), this.GetCameraLocalPosition() + this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
+        //Gizmos.DrawLine( this.transform.position, this.GetCameraLocalPosition() + -this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
+        //Gizmos.DrawLine( this.transform.position, this.GetCameraLocalPosition() + this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
+    }
+
+    private void DrawCarForwardVector()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine( this.transform.position, this.transform.position + this.transform.forward );
+    }
+
+    private void DrawDrivingVelocity( Vector3 forward )
+    {
+        Debug.DrawLine( this.transform.position, ( this.transform.position + forward ), Color.yellow );
+    }
+
+    #endregion gizmos
+
+    // ====================================================================================================
+
+    #region helpers
+
+    private float NormalizeMinusOneToOne(float value)
+    {
+        return ( value + 1f ) / 2f;
+    }
+
+    public float GetPercentageBetween( float value, float min, float max )
+    {
+        if ( Mathf.Approximately( max, min ) )
+        {
+            Debug.LogWarning( "Min and Max cannot be the same value." );
+            return 0f;
+        }
+
+        return Mathf.Clamp01( ( value - min ) / ( max - min ) );
+    }
+
+    #endregion helpers
 
     // ====================================================================================================
 }
