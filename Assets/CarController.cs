@@ -201,8 +201,9 @@ public class CarController : MonoBehaviour
         }
 
         this.UpdateDebugText();
-        this.UpdateDriftCameraAngleValue();
-        this.ApplyYOffset();
+
+            this.UpdateDriftCameraAngleValue();
+            this.ApplyYOffset();
 
         if ( Input.GetKeyDown( KeyCode.Tab ) )
         {
@@ -279,13 +280,13 @@ public class CarController : MonoBehaviour
 
     private float GetDriftCameraValue()
     {
-        if ( this.currentRotationSpeed > this.maxRotationAngle && this.currentRotationSpeed <= this.maxDriftRotationAngle )
+        if ( this.currentRotationSpeed > 0 && this.currentRotationSpeed <= this.maxDriftRotationAngle )
         {
-            return this.GetPercentageBetween( this.currentRotationSpeed, this.maxRotationAngle, this.maxDriftRotationAngle );
+            return this.GetPercentageBetween( this.currentRotationSpeed, 0, this.maxDriftRotationAngle );
         }
-        else if ( this.currentRotationSpeed < -this.maxRotationAngle && this.currentRotationSpeed >= -this.maxDriftRotationAngle )
+        else if ( this.currentRotationSpeed < 0 && this.currentRotationSpeed >= -this.maxDriftRotationAngle )
         {
-            return -this.GetPercentageBetween( this.currentRotationSpeed, -this.maxRotationAngle, -this.maxDriftRotationAngle );
+            return -this.GetPercentageBetween( this.currentRotationSpeed, 0, -this.maxDriftRotationAngle );
         }
 
         return 0;
@@ -314,6 +315,9 @@ public class CarController : MonoBehaviour
     /// </summary>
     void ApplyYOffset()
     {
+        if ( !this.m_isDrifting )
+            return;
+
         // Apply rotation offset on the Y-axis (-180 to 180)
         Quaternion offsetRotation = Quaternion.Euler( 0f, rotationOffset, 0f );
 
