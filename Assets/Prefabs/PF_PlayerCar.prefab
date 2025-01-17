@@ -57,12 +57,12 @@ MonoBehaviour:
     LookAtTarget: {fileID: 2594535956885327221}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 40
+    FieldOfView: 50
     OrthographicSize: 10
     NearClipPlane: 0.1
     FarClipPlane: 5000
     Dutch: 0
-    ModeOverride: 2
+    ModeOverride: 0
     PhysicalProperties:
       GateFit: 2
       SensorSize: {x: 21.946, y: 16.002}
@@ -99,7 +99,7 @@ MonoBehaviour:
       Offset: {x: 0, y: 0}
   CenterOnActivate: 1
   TargetOffset: {x: 0, y: 0, z: 0}
-  Damping: {x: 0.5, y: 0.5}
+  Damping: {x: 0, y: 0.2}
   Lookahead:
     Enabled: 0
     Time: 0
@@ -462,16 +462,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3478ee13864dd2c49b839122f24dff37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxSpeed: 10
-  acceleration: 2
-  deceleration: 4
-  maxRotationAngle: 45
-  maxDriftRotationAngle: 85
-  rotationAcceleration: 100
-  rotationDeceleration: 100
-  oppositeDirectionSnapBackValue: 1
-  m_enterDriftRequirementMultiplier: 0.8
-  m_exitDriftRequirementMultiplier: 0.6
+  m_data: {fileID: 11400000, guid: a3cb82744ce557241ab6045ce90c495c, type: 2}
   gravity: 9.8
   raycastDistance: 2
   rotationLerpSpeed: 1
@@ -479,21 +470,12 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 39
   m_groundCheckDistance: 0.5
-  m_groundLayer:
-    serializedVersion: 2
-    m_Bits: 4294967295
+  m_groundAlignSmoothTime: 0.5
   m_cinemachineFollowTarget: {fileID: 2594535956885327221}
-  m_cinemachineFollowTargetTEMP: {fileID: 1652075236276149224}
-  m_driftCameraOffset: {x: -1, y: 0, z: 0}
   m_debugUGUI: {fileID: 0}
   m_debugDriftUGUI: {fileID: 0}
   m_debugDriftCamera: {fileID: 0}
-  m_alwaysDrifting: 0
   target: {fileID: 2594535956885327221}
-  distance: 5
-  rotationOffset: 0
-  rotOffsetA: -10
-  rotOffsetB: 10
 --- !u!54 &6633210514075290275
 Rigidbody:
   m_ObjectHideFlags: 0

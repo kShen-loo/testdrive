@@ -3,23 +3,9 @@ using UnityEngine;
 
 public class CarController : MonoBehaviour
 {
-
-    [Header( "Speed" )]
-    public float maxSpeed = 20f;            // Maximum forward speed
-    public float acceleration = 5f;        // Speed increment per second when pressing forward
-    public float deceleration = 10f;       // Speed decrement per second when not pressing forward
-
-    [Header( "Angle" )]
-    public float maxRotationAngle = 100f;  // Maximum steering rotation speed
-    public float maxDriftRotationAngle = 85f;
-    public float rotationAcceleration = 50f; // Rotation increment per second
-    public float rotationDeceleration = 70f; // Rotation decrement per second
-    public float oppositeDirectionSnapBackValue = 2.5f;
-
-    [Header( "Drift" )]
-    [SerializeField] private float m_enterDriftRequirementMultiplier = 0.8f;
-    [SerializeField] private float m_exitDriftRequirementMultiplier = 0.6f;
-    //[SerializeField] private float m_driftCounterSteerMultiplier = 1.5f;      // NOTE: Currently unused
+    [Header( "Data" )]
+    [SerializeField] private SO_VehicleData m_data;
+    private StateMachine<IDriveState> m_stateMachine = new StateMachine<IDriveState>();
 
     [Header( "Physics & Gravity" )]
     public float gravity = 9.8f;           // Gravity force
@@ -27,28 +13,27 @@ public class CarController : MonoBehaviour
     public float rotationLerpSpeed = 10f;  // Speed of rotation adjustment to match ground
     [SerializeField] private LayerMask m_layer;
     [SerializeField] private float m_groundCheckDistance;
-    [SerializeField] private LayerMask m_groundLayer;
+    [SerializeField] private float m_groundAlignSmoothTime = 0.2f;
+    private float m_groundAlignVelocity = 0f;
 
     [Header( "Camera" )]
     [SerializeField] private Transform m_cinemachineFollowTarget;
-    [SerializeField] private Transform m_cinemachineFollowTargetTEMP;   // Duplicated transform that is unmodified in code to obtain reference transform
-    //[SerializeField] private Vector3 m_driftCameraOffset;
 
-    public bool grounded { get { return this.IsGrounded(); } }
-    private Rigidbody m_rb;
     private CharacterController characterController;
     private Vector3 velocity;              // Movement velocity, including gravity
     private Vector3 m_driftOrigin;
     private float currentSpeed = 0f;       // Current forward speed
     private float currentRotationSpeed = 0f; // Current rotation speed
     private bool m_align = true;
-    private bool m_isDrifting = false;
 
     [Header( "Debug" )]
     [SerializeField] private TextMeshProUGUI m_debugUGUI;
     [SerializeField] private TextMeshProUGUI m_debugDriftUGUI;
     [SerializeField] private TextMeshProUGUI m_debugDriftCamera;
-    [SerializeField] private bool m_alwaysDrifting;
+
+    private Vector3 m_oriPos;
+    private Quaternion m_oriRot;
+    private Vector3 m_oriScale;
 
     // ====================================================================================================
 
@@ -57,19 +42,20 @@ public class CarController : MonoBehaviour
     private void OnDrawGizmos()
     {
         this.DrawCarForwardVector();
-        this.DrawMaxCameraAngleGizmos();
     }
 
     private void Awake()
     {
         this.RecordOrigin();
         this.m_driftOrigin = this.m_cinemachineFollowTarget.transform.localPosition;
+        this.m_stateMachine.RegisterState( typeof( GripState ), new GripState( this.m_data ) );
+        this.m_stateMachine.RegisterState( typeof( DriftState ), new DriftState( this.m_data ) );
+        this.m_stateMachine.SetState<GripState>();
     }
 
     void Start()
     {
         // Get the CharacterController component
-        this.m_rb = GetComponent<Rigidbody>();
         this.characterController = GetComponent<CharacterController>();
 
         if ( characterController == null )
@@ -80,102 +66,51 @@ public class CarController : MonoBehaviour
 
     void Update()
     {
-        if ( Input.GetKeyDown( KeyCode.Space ) )
-        {
-            this.m_alwaysDrifting = !this.m_alwaysDrifting;
-            return;
-        }
+        // TEMP
+        //if ( Input.GetKeyDown( KeyCode.Space ) )
+        //{
+        //    switch ( this.m_stateMachine.currentState )
+        //    {
+        //        case GripState: this.m_stateMachine.SetState<DriftState>(); break;
+        //        case DriftState: this.m_stateMachine.SetState<GripState>(); break;
+        //    }
+        //    return;
+        //}
 
         // Handle forward acceleration and deceleration
         if ( Input.GetKey( KeyCode.W ) ) // Pressing forward
         {
-            currentSpeed += acceleration * Time.deltaTime;
+            currentSpeed += this.m_data.acceleration * Time.deltaTime;
         }
         else // Not pressing forward
         {
-            currentSpeed -= deceleration * Time.deltaTime;
+            currentSpeed -= this.m_data.deceleration * Time.deltaTime;
         }
 
         // Clamp forward speed
-        currentSpeed = Mathf.Clamp( currentSpeed, 0f, maxSpeed );
-         
-        // Handle rotation acceleration and deceleration
-        float steeringInput = 0f;
-        if ( Input.GetKey( KeyCode.A ) ) // A key to steer left
-        {
-            steeringInput = this.currentRotationSpeed > 0 ? -1f * this.oppositeDirectionSnapBackValue : -1f;
-        }
-        else if ( Input.GetKey( KeyCode.D ) ) // D key to steer right
-        {
-            steeringInput = this.currentRotationSpeed < 0 ? 1f * this.oppositeDirectionSnapBackValue : 1f;
-        }
+        currentSpeed = Mathf.Clamp( currentSpeed, 0f, this.m_data.maxSpeed );
 
-        if ( steeringInput != 0 && this.currentSpeed > 0.1f ) // Increment rotation speed while turning
+        this.UpdateVehicleRotation();
+        this.ClampVehicleRotation();
+
+        switch ( this.m_stateMachine.currentState )
         {
-            currentRotationSpeed += steeringInput * rotationAcceleration * Time.deltaTime;
-        }
-        else // Decrement rotation speed when no input
-        {
-            if ( currentRotationSpeed > 0 )
-            {
-                currentRotationSpeed -= rotationDeceleration * Time.deltaTime;
-                currentRotationSpeed = Mathf.Max( currentRotationSpeed, 0f );
-            }
-            else if ( currentRotationSpeed < 0 )
-            {
-                currentRotationSpeed += rotationDeceleration * Time.deltaTime;
-                currentRotationSpeed = Mathf.Min( currentRotationSpeed, 0f );
-            }
+            case GripState:
+                if ( this.currentRotationSpeed > this.m_data.gripStateData.maxRotationAngle * this.m_data.enterDriftRequirementMultiplier
+                    || this.currentRotationSpeed < -this.m_data.gripStateData.maxRotationAngle * this.m_data.enterDriftRequirementMultiplier )
+                    this.m_stateMachine.SetState<DriftState>();
+                break;
+            case DriftState:
+                if ( this.currentRotationSpeed > -this.m_data.driftStateData.maxRotationAngle * this.m_data.exitDriftRequirementMultiplier
+                        && this.currentRotationSpeed < this.m_data.driftStateData.maxRotationAngle * this.m_data.exitDriftRequirementMultiplier )
+                {
+                    this.m_stateMachine.SetState<GripState>();
+                }
+                break;
         }
 
-        // Clamp rotation speed
-        float rotationSpeedCap = this.maxRotationAngle;
+        this.UpdateVehicleGravity();
 
-        if ( this.m_alwaysDrifting )
-        {
-            this.m_isDrifting = true;
-            rotationSpeedCap = this.maxDriftRotationAngle;
-        }
-        else
-        {
-            //if ( Input.GetKeyDown( KeyCode.S ) || Input.GetKeyDown( KeyCode.Space ) )
-            //{
-            //    if ( this.currentRotationSpeed > this.maxRotationAngle * this.m_enterDriftRequirementMultiplier 
-            //        || this.currentRotationSpeed < -this.maxRotationAngle * this.m_enterDriftRequirementMultiplier )
-            //        this.m_isDrifting = true;
-            //}
-
-            //if ( this.currentRotationSpeed > -this.maxRotationAngle * this.m_exitDriftRequirementMultiplier 
-            //    && this.currentRotationSpeed < this.maxRotationAngle * this.m_exitDriftRequirementMultiplier )
-            //{
-            //    this.m_isDrifting = false;
-            //}
-
-            this.m_isDrifting = false;
-
-            rotationSpeedCap = this.m_isDrifting ? this.maxDriftRotationAngle : this.maxRotationAngle;
-        }
-
-        currentRotationSpeed = Mathf.Clamp( currentRotationSpeed, -rotationSpeedCap, rotationSpeedCap );
-
-        // Apply gravity
-        if ( !characterController.isGrounded )
-        {
-            velocity.y -= gravity * Time.deltaTime;
-        }
-        else
-        {
-            velocity.y = 0f; // Reset vertical velocity when grounded
-        }
-
-        //if ( !this.grounded )
-        //{
-        //    velocity.y -= gravity * Time.deltaTime;
-        //}
-        //else
-        //{
-        //    velocity.y = 0f; // Reset vertical velocity when grounded
-        //}
 
         // Move forward
         Vector3 forwardMovement = transform.forward * currentSpeed;
@@ -183,7 +118,6 @@ public class CarController : MonoBehaviour
         velocity.z = forwardMovement.z;
 
         // Apply movement
-        //this.m_rb.MovePosition( velocity * Time.deltaTime );
         characterController.Move( velocity * Time.deltaTime );
 
         this.DrawDrivingVelocity( velocity.normalized );
@@ -203,8 +137,90 @@ public class CarController : MonoBehaviour
 
         this.UpdateDebugText();
         this.UpdateDriftCameraAngleValue();
-        this.ApplyYOffset();
+        this.UpdateCameraFollowTargetAngle();
 
+        this.ResetPositionInputUpdate();
+    }
+
+    #endregion monobehaviour
+
+    // ====================================================================================================
+
+    private void UpdateVehicleGravity()
+    {
+        if ( !characterController.isGrounded )
+        {
+            velocity.y -= gravity * Time.deltaTime;
+        }
+        else
+        {
+            velocity.y = 0f; // Reset vertical velocity when grounded
+        }
+    }
+
+    private void ClampVehicleRotation()
+    {
+        // Clamp rotation speed
+        float rotationAngleCap = 1;
+        switch ( this.m_stateMachine.currentState )
+        {
+            case GripState: rotationAngleCap = this.m_data.gripStateData.maxRotationAngle; break;
+            case DriftState: rotationAngleCap = this.m_data.driftStateData.maxRotationAngle; break;
+        }
+
+        this.currentRotationSpeed = Mathf.Clamp( currentRotationSpeed, -rotationAngleCap, rotationAngleCap );
+    }
+
+    private void UpdateVehicleRotation()
+    {
+        float oppositeDirMultiplier = 1f;
+        float rotationAccel = 0f;
+        float rotationDecel = 0f;
+        switch ( this.m_stateMachine.currentState )
+        {
+            case GripState:     
+                oppositeDirMultiplier = this.m_data.gripStateData.oppositeDirMultiplier;
+                rotationAccel = this.m_data.gripStateData.rotationAcceleration;
+                rotationDecel = this.m_data.gripStateData.rotationDeceleration; break;
+            case DriftState:    
+                oppositeDirMultiplier = this.m_data.driftStateData.oppositeDirMultiplier;
+                rotationAccel = this.m_data.driftStateData.rotationAcceleration;
+                rotationDecel = this.m_data.driftStateData.rotationDeceleration; break;
+        }
+
+        // Handle rotation acceleration and deceleration
+        float steeringInput = 0f;
+        if ( Input.GetKey( KeyCode.A ) ) // A key to steer left
+        {
+            steeringInput = this.currentRotationSpeed > 0 ? -1f * oppositeDirMultiplier : -1f;
+        }
+        else if ( Input.GetKey( KeyCode.D ) ) // D key to steer right
+        {
+            steeringInput = this.currentRotationSpeed < 0 ? 1f * oppositeDirMultiplier : 1f;
+        }
+
+
+        if ( steeringInput != 0 && this.currentSpeed > 0.1f ) // Increment rotation speed while turning
+        {
+            currentRotationSpeed += steeringInput * rotationAccel * Time.deltaTime;
+        }
+        else // Decrement rotation speed when no input
+        {
+            if ( currentRotationSpeed > 0 )
+            {
+                currentRotationSpeed -= rotationDecel * Time.deltaTime;
+                currentRotationSpeed = Mathf.Max( currentRotationSpeed, 0f );
+            }
+            else if ( currentRotationSpeed < 0 )
+            {
+                currentRotationSpeed += rotationDecel * Time.deltaTime;
+                currentRotationSpeed = Mathf.Min( currentRotationSpeed, 0f );
+            }
+        }
+    }
+
+    private void ResetPositionInputUpdate()
+    {
         if ( Input.GetKeyDown( KeyCode.Tab ) )
         {
             this.m_align = false;
@@ -213,22 +229,17 @@ public class CarController : MonoBehaviour
         }
     }
 
-    #endregion monobehaviour
-
-    // ====================================================================================================
-
-    private bool IsGrounded()
-    {
-        return Physics.Raycast( this.transform.position, Vector3.down, this.m_groundCheckDistance + 0.1f, this.m_groundLayer );
-    }
-
     private void UpdateDebugText()
     {
         if ( this.m_debugUGUI != null )
             this.m_debugUGUI.text = "Current Rotation Angle: " + this.currentRotationSpeed;
 
         if ( this.m_debugDriftUGUI != null )
-            this.m_debugDriftUGUI.text = "Drift Status: " + this.m_isDrifting;
+        {
+            bool drift = this.m_stateMachine.currentState.GetType() == typeof( DriftState );
+            this.m_debugDriftUGUI.text = "Drift Status: " + drift;
+            
+        }
 
         if ( this.m_debugDriftCamera )
             this.m_debugDriftCamera.text = "Drift Camera Value: " + this.rotationOffset;
@@ -238,6 +249,7 @@ public class CarController : MonoBehaviour
     {
         RaycastHit hit;
         Vector3 rayOrigin = transform.position + Vector3.up; // Start ray slightly above the car
+
         if ( Physics.Raycast( rayOrigin, Vector3.down, out hit, raycastDistance, this.m_layer ) )
         {
             // Get the ground's normal
@@ -246,15 +258,14 @@ public class CarController : MonoBehaviour
             // Compute target rotation based on the ground normal
             Quaternion targetRotation = Quaternion.FromToRotation( transform.up, groundNormal ) * transform.rotation;
 
-            // Smoothly interpolate to the target rotation
-            //transform.rotation = Quaternion.Lerp( transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime );
-            transform.rotation = targetRotation;
+            // Smoothly rotate towards the target rotation (SmoothDamp-like)
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation,
+                targetRotation,
+                m_groundAlignSmoothTime * 100f * Time.deltaTime  // Adjust multiplier for speed
+            );
         }
     }
-
-    private Vector3 m_oriPos;
-    private Quaternion m_oriRot;
-    private Vector3 m_oriScale;
 
     private void RecordOrigin()
     {
@@ -273,20 +284,29 @@ public class CarController : MonoBehaviour
         this.currentSpeed = 0;
     }
 
-    private Vector3 GetCameraLocalPosition()
-    {
-        return this.m_cinemachineFollowTargetTEMP.position;
-    }
-
     private float GetDriftCameraValue()
     {
-        if ( this.currentRotationSpeed > 0 && this.currentRotationSpeed <= this.maxDriftRotationAngle )
+        float maxAngle = 0f;
+        float minAngle = 0f;
+        switch ( this.m_stateMachine.currentState )
         {
-            return this.GetPercentageBetween( this.currentRotationSpeed, 0, this.maxDriftRotationAngle );
+            case GripState:
+                minAngle = this.m_data.gripStateData.minEvaluationAngle;
+                maxAngle = this.m_data.gripStateData.maxEvaluationAngle;
+                break;
+            case DriftState:
+                minAngle = this.m_data.driftStateData.minEvaluationAngle;
+                maxAngle = this.m_data.driftStateData.maxEvaluationAngle;
+                break;
         }
-        else if ( this.currentRotationSpeed < 0 && this.currentRotationSpeed >= -this.maxDriftRotationAngle )
+        
+        if ( this.currentRotationSpeed > minAngle && this.currentRotationSpeed <= maxAngle )
         {
-            return -this.GetPercentageBetween( this.currentRotationSpeed, 0, -this.maxDriftRotationAngle );
+            return this.GetPercentageBetween( this.currentRotationSpeed, minAngle, maxAngle );
+        }
+        else if ( this.currentRotationSpeed < minAngle && this.currentRotationSpeed >= -maxAngle )
+        {
+            return -this.GetPercentageBetween( this.currentRotationSpeed, minAngle, -maxAngle );
         }
 
         return 0;
@@ -296,54 +316,69 @@ public class CarController : MonoBehaviour
     public Transform target;  // The transform to offset
 
     [Header( "Offset Settings" )]
-    public float distance = 5f;               // Distance from the target
-    [Range( -180f, 180f )]
-    public float rotationOffset = 0;  // Euler rotation offset
-    public float rotOffsetA;
-    public float rotOffsetB;
+    private float distance = 5f;               // Distance from the target
+    [Range( -180f, 180f )] 
+    private float rotationOffset = 0;  // Euler rotation offset
+    private float rotationVelocity = 0f;
+    private float currentVelocity;
 
     private void UpdateDriftCameraAngleValue()
     {
-        //Vector3 driftA = this.m_driftOrigin + -this.m_driftCameraOffset;
-        //Vector3 driftB = this.m_driftOrigin + this.m_driftCameraOffset;
-        //this.m_cinemachineFollowTarget.transform.localPosition = Vector3.Lerp( driftA, driftB, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) );
-        rotationOffset = Mathf.Lerp( rotOffsetA, rotOffsetB, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) );
+        float rotOffset = 0f;
+        float smoothTime = 0f;
+        switch ( this.m_stateMachine.currentState )
+        {
+            case GripState: 
+                rotOffset = this.m_data.gripStateData.rotationOffset;
+                smoothTime = this.m_data.gripStateData.cameraSmoothTime; 
+                break;
+            case DriftState: 
+                rotOffset = this.m_data.driftStateData.rotationOffset;
+                smoothTime = this.m_data.driftStateData.cameraSmoothTime; 
+                break;
+        }
+
+        //this.rotationOffset = Mathf.Lerp( -rotOffset, rotOffset, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) );
+        this.rotationOffset = Mathf.SmoothDamp(
+                            this.rotationOffset,
+                            Mathf.Lerp( -rotOffset, rotOffset, this.NormalizeMinusOneToOne( this.GetDriftCameraValue() ) ),
+                            ref rotationVelocity,
+                            smoothTime
+                            );
+
+        if ( Mathf.Abs( this.rotationOffset ) < 0.01f )
+        {
+            this.rotationOffset = 0f;
+        }
     }
 
-    /// <summary>
-    /// Offsets the target's position and Y-axis rotation relative to the player.
-    /// </summary>
-    void ApplyYOffset()
+    void UpdateCameraFollowTargetAngle()
     {
-        if ( !this.m_isDrifting )
-            return;
+        // Target Y rotation
+        float targetY = transform.eulerAngles.y + rotationOffset;
 
-        // Apply rotation offset on the Y-axis (-180 to 180)
+        // Smoothly damp the Y-axis rotation
+        float smoothTime = 0f;
+        switch ( this.m_stateMachine.currentState )
+        {
+            case GripState: smoothTime = this.m_data.gripStateData.cameraSmoothTime; break;
+            case DriftState: smoothTime = this.m_data.driftStateData.cameraSmoothTime; break;
+        }
+
+        float smoothY = Mathf.SmoothDampAngle( target.eulerAngles.y, targetY, ref currentVelocity, smoothTime );
+
+        // Apply smoothed rotation
+        target.rotation = Quaternion.Euler( 0f, smoothY, 0f );
+
+        // Update position
         Quaternion offsetRotation = Quaternion.Euler( 0f, rotationOffset, 0f );
-
-        // Calculate the new position based on the offset
         Vector3 offsetPosition = transform.position + ( offsetRotation * transform.forward * distance );
-
-        // Apply the calculated position to the target
         target.position = offsetPosition;
-
-        // Align the target's Y-axis rotation with the offset
-        target.rotation = Quaternion.Euler( 0f, transform.eulerAngles.y + rotationOffset, 0f );
     }
 
     // ====================================================================================================
 
     #region gizmos
-
-    private void DrawMaxCameraAngleGizmos()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawSphere( this.m_cinemachineFollowTarget.position, 0.2f );
-        //Gizmos.DrawLine( this.GetCameraLocalPosition(), this.GetCameraLocalPosition() + -this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
-        //Gizmos.DrawLine( this.GetCameraLocalPosition(), this.GetCameraLocalPosition() + this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
-        //Gizmos.DrawLine( this.transform.position, this.GetCameraLocalPosition() + -this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
-        //Gizmos.DrawLine( this.transform.position, this.GetCameraLocalPosition() + this.m_driftCameraOffset.x * this.m_cinemachineFollowTargetTEMP.right );
-    }
 
     private void DrawCarForwardVector()
     {

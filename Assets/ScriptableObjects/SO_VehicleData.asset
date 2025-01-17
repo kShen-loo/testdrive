@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 829d646adfb271a4ca6f59efa8ea1980, type: 3}
+  m_Name: SO_VehicleData
+  m_EditorClassIdentifier: 
+  m_maxSpeed: 25
+  m_acceleration: 4
+  m_deceleration: 6
+  m_enterDriftRequirementMultiplier: 0.8
+  m_exitDriftRequirementMultiplier: 0.4
+  m_gripStateData:
+    maxRotationAngle: 45
+    rotationAcceleration: 100
+    rotationDeceleration: 100
+    oppositeDirMultiplier: 2
+    rotationOffset: 0
+    minEvaluationAngle: 0
+    maxEvaluationAngle: 45
+    cameraSmoothTime: 0.5
+  m_driftStateData:
+    maxRotationAngle: 75
+    rotationAcceleration: 100
+    rotationDeceleration: 100
+    oppositeDirMultiplier: 2
+    rotationOffset: 30
+    minEvaluationAngle: 10
+    maxEvaluationAngle: 75
+    cameraSmoothTime: 0.7
