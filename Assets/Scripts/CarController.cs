@@ -3,6 +3,7 @@ using UnityEngine;
 
 public class CarController : MonoBehaviour
 {
+
     [Header( "Speed" )]
     public float maxSpeed = 20f;            // Maximum forward speed
     public float acceleration = 5f;        // Speed increment per second when pressing forward
@@ -201,9 +202,8 @@ public class CarController : MonoBehaviour
         }
 
         this.UpdateDebugText();
-
-            this.UpdateDriftCameraAngleValue();
-            this.ApplyYOffset();
+        this.UpdateDriftCameraAngleValue();
+        this.ApplyYOffset();
 
         if ( Input.GetKeyDown( KeyCode.Tab ) )
         {
