@@ -12,26 +12,77 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 829d646adfb271a4ca6f59efa8ea1980, type: 3}
   m_Name: SO_VehicleData
   m_EditorClassIdentifier: 
-  m_maxSpeed: 25
-  m_acceleration: 4
-  m_deceleration: 6
+  m_maxSpeed: 20
+  m_acceleration: 3
+  m_deceleration: 2
+  m_brakeSpeed: 12
+  m_cameraNeutralizeSpeed: 2
+  m_carRotationNeutralizeSpeed: 10
   m_enterDriftRequirementMultiplier: 0.8
-  m_exitDriftRequirementMultiplier: 0.4
+  m_exitDriftRequirementMultiplier: 0.3
   m_gripStateData:
     maxRotationAngle: 45
     rotationAcceleration: 100
-    rotationDeceleration: 100
+    rotationDeceleration: 120
     oppositeDirMultiplier: 2
+    steeringAngleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 1
+        outSlope: 1
+        tangentMode: 34
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 1
+        outSlope: 1
+        tangentMode: 34
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
     rotationOffset: 0
     minEvaluationAngle: 0
     maxEvaluationAngle: 45
-    cameraSmoothTime: 0.5
+    cameraSmoothTime: 0.3
   m_driftStateData:
     maxRotationAngle: 75
-    rotationAcceleration: 100
-    rotationDeceleration: 100
-    oppositeDirMultiplier: 2
-    rotationOffset: 30
+    rotationAcceleration: 110
+    rotationDeceleration: 120
+    oppositeDirMultiplier: 3
+    steeringAngleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 1
+        outSlope: 1
+        tangentMode: 34
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 1
+        outSlope: 1
+        tangentMode: 34
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    rotationOffset: 25
     minEvaluationAngle: 10
     maxEvaluationAngle: 75
-    cameraSmoothTime: 0.7
+    cameraSmoothTime: 0.6

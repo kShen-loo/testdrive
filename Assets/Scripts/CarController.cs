@@ -5,7 +5,7 @@ public class CarController : MonoBehaviour
 {
     [Header( "Data" )]
     [SerializeField] private SO_VehicleData m_data;
-    private StateMachine<IDriveState> m_stateMachine = new StateMachine<IDriveState>();
+    public StateMachine<IDriveState> m_stateMachine = new StateMachine<IDriveState>();
 
     [Header( "Physics & Gravity" )]
     public float gravity = 9.8f;           // Gravity force
@@ -22,15 +22,24 @@ public class CarController : MonoBehaviour
     private CharacterController characterController;
     private Vector3 velocity;              // Movement velocity, including gravity
     private Vector3 m_driftOrigin;
-    private float currentSpeed = 0f;       // Current forward speed
-    private float currentRotationSpeed = 0f; // Current rotation speed
+    public float currentSpeed = 0f;       // Current forward speed
+    public float currentRotationSpeed = 0f; // Current rotation speed
+    public float targetSteeringAngle;
     private bool m_align = true;
 
-    [Header( "Debug" )]
-    [SerializeField] private TextMeshProUGUI m_debugUGUI;
-    [SerializeField] private TextMeshProUGUI m_debugDriftUGUI;
-    [SerializeField] private TextMeshProUGUI m_debugDriftCamera;
+    [Header( "Input" )]
+    [SerializeField] private PlayerInputManager m_playerInputManager;
 
+    [Header( "Target Transform" )]
+    public Transform target;  // The transform to offset
+
+    [Header( "Offset Settings" )]
+    private float distance = 5f;               // Distance from the target
+    [Range( -180f, 180f )]
+    public float rotationOffset = 0;  // Euler rotation offset
+    private float rotationVelocity = 0f;
+    private float currentVelocity;
+    private float currentVelocity2;
     private Vector3 m_oriPos;
     private Quaternion m_oriRot;
     private Vector3 m_oriScale;
@@ -66,29 +75,20 @@ public class CarController : MonoBehaviour
 
     void Update()
     {
-        // TEMP
-        //if ( Input.GetKeyDown( KeyCode.Space ) )
-        //{
-        //    switch ( this.m_stateMachine.currentState )
-        //    {
-        //        case GripState: this.m_stateMachine.SetState<DriftState>(); break;
-        //        case DriftState: this.m_stateMachine.SetState<GripState>(); break;
-        //    }
-        //    return;
-        //}
-
-        // Handle forward acceleration and deceleration
-        if ( Input.GetKey( KeyCode.W ) ) // Pressing forward
-        {
-            currentSpeed += this.m_data.acceleration * Time.deltaTime;
-        }
-        else // Not pressing forward
-        {
+        if ( this.m_playerInputManager.accelerate > 0 )
+            currentSpeed += this.m_data.acceleration * this.m_playerInputManager.accelerate * Time.deltaTime;
+        else
             currentSpeed -= this.m_data.deceleration * Time.deltaTime;
+
+        if ( this.m_playerInputManager.brake > 0 )
+        {
+            currentSpeed -= this.m_data.brakeSpeed * this.m_playerInputManager.brake * Time.deltaTime;
         }
 
         // Clamp forward speed
         currentSpeed = Mathf.Clamp( currentSpeed, 0f, this.m_data.maxSpeed );
+
+        this.UpdateSteeringAngle( this.m_playerInputManager.moveDelta.x );
 
         this.UpdateVehicleRotation();
         this.ClampVehicleRotation();
@@ -111,9 +111,27 @@ public class CarController : MonoBehaviour
 
         this.UpdateVehicleGravity();
 
-
         // Move forward
-        Vector3 forwardMovement = transform.forward * currentSpeed;
+        Vector3 cameraPos = this.m_cinemachineFollowTarget.transform.position;
+        cameraPos.y = this.transform.position.y;
+
+        //Vector3 forwardMovement = transform.forward * currentSpeed;
+
+        // Change forward direction between car forward / towards camera
+        Vector3 forwardMovement = Vector3.zero;
+        if ( this.m_stateMachine.currentState.GetType() == typeof( GripState ) )
+        {
+            //forwardMovement = transform.forward * currentSpeed;
+            forwardMovement = Vector3.Lerp( this.transform.forward, ( cameraPos - this.transform.position ).normalized, Time.deltaTime * this.m_data.carRotationNeutralizeSpeed ) * currentSpeed;
+            //forwardMovement = ( cameraPos - this.transform.position ).normalized * currentSpeed;
+        }
+        else
+        {
+            //forwardMovement = Vector3.Lerp( this.transform.forward, ( cameraPos - this.transform.position ).normalized, Time.deltaTime * this.m_data.carRotationNeutralizeSpeed ) * currentSpeed;
+            forwardMovement = transform.forward * currentSpeed;
+            //forwardMovement = ( cameraPos - this.transform.position ).normalized * currentSpeed;
+        }
+
         velocity.x = forwardMovement.x;
         velocity.z = forwardMovement.z;
 
@@ -135,7 +153,6 @@ public class CarController : MonoBehaviour
             AlignToGround();
         }
 
-        this.UpdateDebugText();
         this.UpdateDriftCameraAngleValue();
         this.UpdateCameraFollowTargetAngle();
 
@@ -189,16 +206,16 @@ public class CarController : MonoBehaviour
         }
 
         // Handle rotation acceleration and deceleration
+        float moveDelta = this.m_playerInputManager.moveDelta.x;
         float steeringInput = 0f;
-        if ( Input.GetKey( KeyCode.A ) ) // A key to steer left
+        if ( this.m_playerInputManager.moveDelta.x < 0 )
         {
-            steeringInput = this.currentRotationSpeed > 0 ? -1f * oppositeDirMultiplier : -1f;
+            steeringInput = this.currentRotationSpeed > 0 ? -Mathf.Abs( moveDelta * oppositeDirMultiplier ) : -Mathf.Abs( moveDelta );
         }
-        else if ( Input.GetKey( KeyCode.D ) ) // D key to steer right
+        else if ( this.m_playerInputManager.moveDelta.x > 0 )
         {
-            steeringInput = this.currentRotationSpeed < 0 ? 1f * oppositeDirMultiplier : 1f;
+            steeringInput = this.currentRotationSpeed < 0 ? Mathf.Abs( moveDelta * oppositeDirMultiplier ) : Mathf.Abs( moveDelta );
         }
-
 
         if ( steeringInput != 0 && this.currentSpeed > 0.1f ) // Increment rotation speed while turning
         {
@@ -227,22 +244,6 @@ public class CarController : MonoBehaviour
             this.ResetToOrigin();
             this.m_align = true;
         }
-    }
-
-    private void UpdateDebugText()
-    {
-        if ( this.m_debugUGUI != null )
-            this.m_debugUGUI.text = "Current Rotation Angle: " + this.currentRotationSpeed;
-
-        if ( this.m_debugDriftUGUI != null )
-        {
-            bool drift = this.m_stateMachine.currentState.GetType() == typeof( DriftState );
-            this.m_debugDriftUGUI.text = "Drift Status: " + drift;
-            
-        }
-
-        if ( this.m_debugDriftCamera )
-            this.m_debugDriftCamera.text = "Drift Camera Value: " + this.rotationOffset;
     }
 
     private void AlignToGround()
@@ -312,16 +313,6 @@ public class CarController : MonoBehaviour
         return 0;
     }
 
-    [Header( "Target Transform" )]
-    public Transform target;  // The transform to offset
-
-    [Header( "Offset Settings" )]
-    private float distance = 5f;               // Distance from the target
-    [Range( -180f, 180f )] 
-    private float rotationOffset = 0;  // Euler rotation offset
-    private float rotationVelocity = 0f;
-    private float currentVelocity;
-
     private void UpdateDriftCameraAngleValue()
     {
         float rotOffset = 0f;
@@ -374,6 +365,36 @@ public class CarController : MonoBehaviour
         Quaternion offsetRotation = Quaternion.Euler( 0f, rotationOffset, 0f );
         Vector3 offsetPosition = transform.position + ( offsetRotation * transform.forward * distance );
         target.position = offsetPosition;
+
+        if ( currentSpeed > 0f )
+        {
+            // Rotate car towards camera
+            Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
+            Quaternion lookRotation = Quaternion.LookRotation( direction );
+            float angleDifference = Vector3.Angle( transform.forward, direction );
+
+            if ( this.m_stateMachine.currentState.GetType() == typeof( GripState ) )
+            {
+                transform.rotation = Quaternion.Lerp( transform.rotation, lookRotation, Time.deltaTime * this.m_data.cameraNeutralizeSpeed );
+
+                //Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
+                //float targetAngle = Mathf.Atan2( direction.x, direction.z ) * Mathf.Rad2Deg; // Get target angle
+                //float smoothAngle = Mathf.SmoothDampAngle( transform.eulerAngles.y, targetAngle, ref currentVelocity2, this.m_data.cameraNeutralizeSpeed * Time.deltaTime );
+                //transform.rotation = Quaternion.Euler( 0, smoothAngle, 0 ); // Apply rotation only on Y-axis
+            }
+        }
+    }
+
+    private void UpdateSteeringAngle( float input )
+    {
+        SWheelData gripStateData = this.m_data.gripStateData;
+        SWheelData driftStateData = this.m_data.driftStateData;
+
+        switch ( this.m_stateMachine.currentState )
+        {
+            case GripState: this.targetSteeringAngle = gripStateData.steeringAngleCurve.Evaluate( Mathf.Abs( input ) ) * gripStateData.maxRotationAngle * input; break;
+            case DriftState: this.targetSteeringAngle = driftStateData.steeringAngleCurve.Evaluate( Mathf.Abs( input ) ) * driftStateData.maxRotationAngle * input; break;
+        }
     }
 
     // ====================================================================================================
@@ -383,12 +404,17 @@ public class CarController : MonoBehaviour
     private void DrawCarForwardVector()
     {
         Gizmos.color = Color.green;
-        Gizmos.DrawLine( this.transform.position, this.transform.position + this.transform.forward );
+
+        Vector3 cameraPos = this.m_cinemachineFollowTarget.transform.position;
+        cameraPos.y = this.transform.position.y;
+        Vector3 forwardMovement = ( cameraPos - this.transform.position ).normalized * currentSpeed;
+
+        Gizmos.DrawLine( this.transform.position, this.transform.position + forwardMovement );
     }
 
     private void DrawDrivingVelocity( Vector3 forward )
     {
-        Debug.DrawLine( this.transform.position, ( this.transform.position + forward ), Color.yellow );
+        Debug.DrawLine( this.transform.position, ( this.transform.position + ( forward * currentSpeed) ), Color.yellow );
     }
 
     #endregion gizmos
