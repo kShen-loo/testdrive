@@ -345,6 +345,25 @@ public class CarController : MonoBehaviour
 
     void UpdateCameraFollowTargetAngle()
     {
+        if ( currentSpeed > 0f )
+        {
+            // Rotate car towards camera
+            Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
+            Quaternion lookRotation = Quaternion.LookRotation( direction );
+            float angleDifference = Vector3.Angle( transform.forward, direction );
+
+            // Lerps current transform towards 
+            if ( this.m_stateMachine.currentState.GetType() == typeof( GripState ) )
+            {
+                transform.rotation = Quaternion.Lerp( transform.rotation, lookRotation, Time.deltaTime * this.m_data.cameraNeutralizeSpeed );
+
+                //Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
+                //float targetAngle = Mathf.Atan2( direction.x, direction.z ) * Mathf.Rad2Deg; // Get target angle
+                //float smoothAngle = Mathf.SmoothDampAngle( transform.eulerAngles.y, targetAngle, ref currentVelocity2, this.m_data.cameraNeutralizeSpeed * Time.deltaTime );
+                //transform.rotation = Quaternion.Euler( 0, smoothAngle, 0 ); // Apply rotation only on Y-axis
+            }
+        }
+
         // Target Y rotation
         float targetY = transform.eulerAngles.y + rotationOffset;
 
@@ -365,24 +384,6 @@ public class CarController : MonoBehaviour
         Quaternion offsetRotation = Quaternion.Euler( 0f, rotationOffset, 0f );
         Vector3 offsetPosition = transform.position + ( offsetRotation * transform.forward * distance );
         target.position = offsetPosition;
-
-        if ( currentSpeed > 0f )
-        {
-            // Rotate car towards camera
-            Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
-            Quaternion lookRotation = Quaternion.LookRotation( direction );
-            float angleDifference = Vector3.Angle( transform.forward, direction );
-
-            if ( this.m_stateMachine.currentState.GetType() == typeof( GripState ) )
-            {
-                transform.rotation = Quaternion.Lerp( transform.rotation, lookRotation, Time.deltaTime * this.m_data.cameraNeutralizeSpeed );
-
-                //Vector3 direction = ( this.m_cinemachineFollowTarget.position - transform.position ).normalized;
-                //float targetAngle = Mathf.Atan2( direction.x, direction.z ) * Mathf.Rad2Deg; // Get target angle
-                //float smoothAngle = Mathf.SmoothDampAngle( transform.eulerAngles.y, targetAngle, ref currentVelocity2, this.m_data.cameraNeutralizeSpeed * Time.deltaTime );
-                //transform.rotation = Quaternion.Euler( 0, smoothAngle, 0 ); // Apply rotation only on Y-axis
-            }
-        }
     }
 
     private void UpdateSteeringAngle( float input )
