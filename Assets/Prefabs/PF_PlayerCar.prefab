@@ -663,6 +663,7 @@ GameObject:
   - component: {fileID: 50700843623988965}
   - component: {fileID: 6583264610002489172}
   - component: {fileID: 6633210514075290275}
+  - component: {fileID: 2917292447763270275}
   m_Layer: 4
   m_Name: PF_PlayerCar
   m_TagString: Untagged
@@ -795,7 +796,8 @@ MonoBehaviour:
   m_cinemachineFollowTarget: {fileID: 2594535956885327221}
   currentSpeed: 0
   currentRotationSpeed: 0
-  m_playerInputManager: {fileID: 0}
+  targetSteeringAngle: 0
+  m_playerInputManager: {fileID: 2917292447763270275}
   target: {fileID: 2594535956885327221}
   rotationOffset: 0
 --- !u!54 &6633210514075290275
@@ -825,6 +827,19 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 112
   m_CollisionDetection: 0
+--- !u!114 &2917292447763270275
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3536203177153868665}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20a3a654b98a8f847a557b40d9ddeab1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_inputReader: {fileID: 11400000, guid: f614dfad863f5424397def2636ca8870, type: 2}
 --- !u!1 &3828230377524087445
 GameObject:
   m_ObjectHideFlags: 0

@@ -228,51 +228,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &376579792
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 376579793}
-  - component: {fileID: 376579794}
-  m_Layer: 0
-  m_Name: PlayerInputManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &376579793
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 376579792}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &376579794
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 376579792}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 20a3a654b98a8f847a557b40d9ddeab1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_inputReader: {fileID: 11400000, guid: f614dfad863f5424397def2636ca8870, type: 2}
 --- !u!1001 &1012450200
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -425,7 +380,7 @@ PrefabInstance:
     - target: {fileID: 5731837344436014082, guid: 0c56987897aa2cc46b6a53674af41aa3, type: 3}
       propertyPath: m_inputManager
       value: 
-      objectReference: {fileID: 376579794}
+      objectReference: {fileID: 0}
     - target: {fileID: 5731837344436014082, guid: 0c56987897aa2cc46b6a53674af41aa3, type: 3}
       propertyPath: m_carController
       value: 
@@ -1020,10 +975,6 @@ PrefabInstance:
       propertyPath: m_debugDriftCamera
       value: 
       objectReference: {fileID: 1014504447}
-    - target: {fileID: 6583264610002489172, guid: a9dd859b6e0a63e4eb8980d0cd5aec56, type: 3}
-      propertyPath: m_playerInputManager
-      value: 
-      objectReference: {fileID: 376579794}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1093,5 +1044,4 @@ SceneRoots:
   - {fileID: 1012450200}
   - {fileID: 1014504446}
   - {fileID: 1641027807}
-  - {fileID: 376579793}
   - {fileID: 85550635}
